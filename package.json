@@ -1,0 +1,20 @@
+{
+  "name": "visionforge-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/desktop"
+  ],
+  "scripts": {
+    "dev": "npm run tauri --workspace @visionforge/desktop -- dev",
+    "build": "npm run build --workspace @visionforge/desktop",
+    "build:desktop": "npm run tauri --workspace @visionforge/desktop -- build",
+    "test": "npm run test --workspace @visionforge/desktop",
+    "check": "npm run check --workspace @visionforge/desktop"
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <13"
+  }
+}
+

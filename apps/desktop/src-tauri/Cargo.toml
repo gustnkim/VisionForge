@@ -1,0 +1,23 @@
+[package]
+name = "visionforge-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "visionforge_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+visionforge-core = { path = "../../../crates/visionforge-core" }
+
+[dev-dependencies]
+base64 = "0.22"
+tempfile = "3"

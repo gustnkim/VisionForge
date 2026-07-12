@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "VisionForge",
+  "version": "0.1.0",
+  "identifier": "com.visionforge.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "node ../../scripts/prepare-desktop-bundle.mjs",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "VisionForge",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 920,
+        "minHeight": 680,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "resources": {
+      "binaries/visionforge-engine-runtime/": "visionforge-engine-runtime/"
+    },
+    "category": "DeveloperTool",
+    "shortDescription": "Offline object detection workbench",
+    "longDescription": "Create datasets, train local models, and inspect images without cloud services."
+  }
+}
