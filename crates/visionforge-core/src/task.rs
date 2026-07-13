@@ -422,8 +422,10 @@ mod tests {
     fn unsafe_output_policy_is_rejected() {
         let root = tempfile::tempdir().expect("temporary directory");
         let project = create_project(root.path(), "안전", "상자").expect("project");
-        let mut output = OutputPolicy::default();
-        output.present_folder = "../outside".to_owned();
+        let output = OutputPolicy {
+            present_folder: "../outside".to_owned(),
+            ..OutputPolicy::default()
+        };
         let error = save_task_spec(
             &project.path,
             &TaskSpecInput {

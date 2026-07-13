@@ -649,42 +649,43 @@ fn import_images(
             .unwrap_or("unknown")
             .to_owned();
 
-        if inspection.status == "succeeded" {
-            if let Some(checksum) = inspection.checksum_sha256.as_deref() {
-                let existing: Option<(String, Option<String>, String)> = transaction
-                    .query_row(
-                        "SELECT id, internal_path, review_status FROM image_assets
+        if let ("succeeded", Some(checksum)) = (
+            inspection.status.as_str(),
+            inspection.checksum_sha256.as_deref(),
+        ) {
+            let existing: Option<(String, Option<String>, String)> = transaction
+                .query_row(
+                    "SELECT id, internal_path, review_status FROM image_assets
                          WHERE checksum_sha256 = ?1 AND role = ?2
                          LIMIT 1",
-                        params![checksum, role],
-                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-                    )
-                    .optional()?;
-                if let Some((id, internal_path, review_status)) = existing {
-                    let mut warnings = inspection.warnings.clone();
-                    warnings.push(WarningInput {
-                        code: "exact_duplicate".to_owned(),
-                        message: "동일한 이미지가 이미 프로젝트에 등록되어 있습니다.".to_owned(),
-                        value: None,
-                    });
-                    imported.push(ImportedImage {
-                        id,
-                        role: role.to_owned(),
-                        original_path: inspection.path.clone(),
-                        original_name,
-                        internal_path,
-                        status: "succeeded".to_owned(),
-                        width: inspection.width,
-                        height: inspection.height,
-                        checksum_sha256: inspection.checksum_sha256.clone(),
-                        warnings,
-                        duplicate: true,
-                        review_status,
-                        error_code: None,
-                        error_message: None,
-                    });
-                    continue;
-                }
+                    params![checksum, role],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .optional()?;
+            if let Some((id, internal_path, review_status)) = existing {
+                let mut warnings = inspection.warnings.clone();
+                warnings.push(WarningInput {
+                    code: "exact_duplicate".to_owned(),
+                    message: "동일한 이미지가 이미 프로젝트에 등록되어 있습니다.".to_owned(),
+                    value: None,
+                });
+                imported.push(ImportedImage {
+                    id,
+                    role: role.to_owned(),
+                    original_path: inspection.path.clone(),
+                    original_name,
+                    internal_path,
+                    status: "succeeded".to_owned(),
+                    width: inspection.width,
+                    height: inspection.height,
+                    checksum_sha256: inspection.checksum_sha256.clone(),
+                    warnings,
+                    duplicate: true,
+                    review_status,
+                    error_code: None,
+                    error_message: None,
+                });
+                continue;
             }
         }
 

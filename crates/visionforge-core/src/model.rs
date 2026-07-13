@@ -367,24 +367,26 @@ pub fn model_package_sources(
 pub fn latest_model_version(
     project_path: impl AsRef<Path>,
 ) -> Result<Option<ModelVersionSummary>, CoreError> {
+    type LatestModelRow = (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+    );
+
     let project_path = project_path.as_ref();
     let _manifest = read_manifest(project_path)?;
     let connection = open_database(project_path)?;
     initialize_schema(&connection)?;
-    let row: Option<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-    )> = connection
+    let row: Option<LatestModelRow> = connection
         .query_row(
             "SELECT id, dataset_id, deployment_status, engine_name, class_id, class_name, origin,
                     model_path, model_checksum_sha256, metrics_json, warnings_json,
