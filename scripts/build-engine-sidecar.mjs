@@ -46,6 +46,42 @@ function pythonExecutable() {
   return executable;
 }
 
+function macOSTargetArchitecture() {
+  const targetArchitecture = process.env.TAURI_ENV_ARCH?.trim().toLowerCase();
+  if (targetArchitecture) {
+    if (["aarch64", "arm64"].includes(targetArchitecture)) return "arm64";
+    if (["x86_64", "x64"].includes(targetArchitecture)) return "x86_64";
+    throw new Error(`Unsupported macOS target architecture: ${targetArchitecture}.`);
+  }
+
+  if (process.arch === "arm64") return "arm64";
+  if (process.arch === "x64") return "x86_64";
+  throw new Error(`Unsupported Node architecture for macOS: ${process.arch}.`);
+}
+
+function macOSBuildArguments(python) {
+  if (process.platform !== "darwin") return [];
+
+  const expectedArchitecture = macOSTargetArchitecture();
+  const pythonArchitecture = run(
+    python,
+    ["-c", "import platform; print(platform.machine().lower())"],
+    { cwd: engine, capture: true },
+  );
+  if (pythonArchitecture !== expectedArchitecture) {
+    throw new Error(
+      `Python architecture ${pythonArchitecture} does not match macOS target architecture ${expectedArchitecture}.`,
+    );
+  }
+
+  const args = ["--target-arch", expectedArchitecture];
+  const signingIdentity = process.env.APPLE_SIGNING_IDENTITY?.trim();
+  if (signingIdentity) {
+    args.push("--codesign-identity", signingIdentity);
+  }
+  return args;
+}
+
 export function sidecarRuntimeDirectory() {
   return path.join(
     root,
@@ -64,6 +100,7 @@ export function sidecarDestination() {
 
 async function build() {
   const python = pythonExecutable();
+  const platformArguments = macOSBuildArguments(python);
   const buildRoot = path.join(root, "target", "pyinstaller-work", randomUUID());
   const specPath = path.join(buildRoot, "spec");
   const workPath = path.join(buildRoot, "work");
@@ -83,6 +120,7 @@ async function build() {
         "--clean",
         "--onedir",
         "--console",
+        ...platformArguments,
         "--specpath",
         specPath,
         "--workpath",
@@ -130,11 +168,23 @@ async function build() {
     }
     const runtimeDirectory = sidecarRuntimeDirectory();
     await rm(runtimeDirectory, { recursive: true, force: true });
-    await cp(sourceDirectory, runtimeDirectory, { recursive: true, force: true });
+    await cp(sourceDirectory, runtimeDirectory, {
+      recursive: true,
+      force: true,
+      verbatimSymlinks: true,
+    });
     await writeFile(path.join(runtimeDirectory, ".gitkeep"), "", "utf8");
     const destination = sidecarDestination();
     if (process.platform !== "win32") {
       await chmod(destination, 0o755);
+    }
+    if (process.platform === "darwin") {
+      const smokeRequest = path.join(buildRoot, "system-profile.json");
+      await writeFile(smokeRequest, JSON.stringify({ path: runtimeDirectory }), "utf8");
+      run(destination, ["system-profile", "--input", smokeRequest], {
+        cwd: runtimeDirectory,
+        capture: true,
+      });
     }
     console.log(`VisionForge engine sidecar: ${destination}`);
   } finally {

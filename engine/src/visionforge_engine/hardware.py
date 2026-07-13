@@ -81,12 +81,20 @@ def _profile_name(
     accelerator: str,
 ) -> str:
     if system == "darwin" and architecture in {"arm64", "aarch64"}:
-        if total_memory is not None and total_memory <= 20 * GIB:
+        if total_memory is None or total_memory <= 20 * GIB:
             return "APPLE_M1_16_BASELINE"
         return "APPLE_HIGH_MEMORY"
     if accelerator == "cuda":
         return "CUDA_ACCELERATED"
     return "CPU_FALLBACK"
+
+
+def _mps_recommended_memory(torch_module: Any, total_memory: int | None) -> int | None:
+    with suppress(AttributeError, RuntimeError, TypeError, ValueError):
+        recommended = int(torch_module.mps.recommended_max_memory())
+        if recommended > 0:
+            return recommended
+    return total_memory
 
 
 def probe_hardware(
@@ -115,7 +123,7 @@ def probe_hardware(
                 providers.insert(0, "mps")
                 accelerator = "mps"
                 accelerator_name = "Apple Metal Performance Shaders"
-                accelerator_memory = total_memory
+                accelerator_memory = _mps_recommended_memory(torch, total_memory)
             elif torch.cuda.is_available():
                 providers.insert(0, "cuda")
                 accelerator = "cuda"

@@ -1,6 +1,28 @@
 from __future__ import annotations
 
-from visionforge_engine.hardware import HardwareProfile, probe_hardware, select_torch_device
+from visionforge_engine.hardware import (
+    HardwareProfile,
+    _mps_recommended_memory,
+    _profile_name,
+    probe_hardware,
+    select_torch_device,
+)
+
+
+def test_unknown_apple_memory_uses_the_conservative_profile() -> None:
+    assert _profile_name("darwin", "arm64", None, "mps") == "APPLE_M1_16_BASELINE"
+
+
+def test_mps_profile_uses_the_runtime_recommended_memory() -> None:
+    class FakeMps:
+        @staticmethod
+        def recommended_max_memory() -> int:
+            return 24 * 1024**3
+
+    class FakeTorch:
+        mps = FakeMps()
+
+    assert _mps_recommended_memory(FakeTorch(), 32 * 1024**3) == 24 * 1024**3
 
 
 def test_hardware_profile_reports_a_supported_provider(tmp_path) -> None:

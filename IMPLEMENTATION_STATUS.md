@@ -1,8 +1,8 @@
 # VisionForge 구현 상태
 
-> 기준일: 2026-07-12  
-> 앱 버전: 0.1.0  
-> 상태: `object_presence` 기능형 MVP + PyTorch 고성능 탐지 백엔드 후보
+> 기준일: 2026-07-13
+> 앱 버전: 0.1.0
+> 상태: `object_presence` 기능형 MVP + PyTorch 고성능 탐지 백엔드 후보 + macOS arm64 기능 검증
 
 ## 1. 현재 구조
 
@@ -39,7 +39,7 @@ Rust 코어가 프로젝트 경계, TaskSpec, 데이터셋 계보, 모델 상태
 | 품질 게이트 | 안전 기본값 구현 | 새 모델은 `candidate`, 실제 평가 전 자동 폴더 라우팅 차단 |
 | 모델 공유 | 구현 | 가중치·TaskSpec·지표·라이선스·SHA-256 포함 `.vfmodel` |
 | 교차 플랫폼 빌드 | 구성 구현 | 공용 Node 빌드 스크립트, Windows NSIS, macOS app·dmg 설정 |
-| 실제 M1 검증 | 미완료 | M1 Pro 16GB 장비에서 MPS·장시간·서명 시험 필요 |
+| 실제 M1 검증 | 부분 완료 | M1 Pro 32GB에서 MPS·arm64 app·dmg 검증 완료, 16GB·장시간·배포 서명 시험 필요 |
 
 ## 3. 모델 백엔드
 
@@ -56,7 +56,7 @@ Rust 코어가 프로젝트 경계, TaskSpec, 데이터셋 계보, 모델 상태
 
 등록 원본, 사용자가 검토할 합성 이미지, 승인 상태, 불변 데이터셋, 모델과 결과는 프로젝트에 저장한다. 학습 시 추가 텐서 변형은 메모리에서만 만들고 별도 변형 이미지 파일로 누적하지 않는다. 데이터셋 로더는 한 장 또는 작은 배치만 디코딩한다.
 
-`model.pt`는 현재 아키텍처에서 약 76MB다. 번들 사전학습 체크포인트는 77,844,807 bytes다. Windows PyPI CPU 런타임의 검증 빌드는 617,477,192 bytes였으며, M1 arm64 런타임 크기는 실제 Mac 빌드에서 측정해야 한다.
+`model.pt`는 현재 아키텍처에서 약 76MB다. 번들 사전학습 체크포인트는 77,844,807 bytes다. Windows PyPI CPU 런타임의 검증 빌드는 617,477,192 bytes였다. M1 arm64 빌드는 sidecar 약 537MB, `.app` 약 815MB, 압축 DMG 약 272MB로 측정됐다.
 
 ## 5. 오분류 방지
 
@@ -74,39 +74,43 @@ Rust 코어가 프로젝트 경계, TaskSpec, 데이터셋 계보, 모델 상태
 
 | 검증 | 결과 |
 |---|---|
-| Python 단위 테스트 | 12 passed, 1 opt-in skipped |
-| Torch 사전학습 통합 테스트 | CPU 1 passed, 이전 CUDA 1 passed |
+| Python 단위 테스트 | 14 passed, 1 opt-in skipped |
+| Torch 사전학습 통합 테스트 | MPS 1 passed, CPU 1 passed, 이전 CUDA 1 passed |
 | Python Ruff | 통과, cache 비활성화 |
 | Rust core 테스트 | 9 passed |
-| Rust desktop 컴파일 | `cargo check` 통과 |
+| Rust desktop 테스트 | 3 passed, 전체 로컬 파이프라인 포함 |
 | React TypeScript | 통과 |
 | Vitest | 2 passed |
 | Vite production build | 통과 |
 | CUDA `onedir` sidecar | system-profile, 실제 모델 추론, 1 epoch 학습 통과 |
 | 잠금 기반 CPU `onedir` sidecar | 617MB 빌드 성공, 새 unsigned 실행 파일은 현재 Windows 앱 제어 정책에 차단 |
 | Rust desktop 테스트 실행 | 바이너리 생성 성공, 현재 Windows 앱 제어 정책이 실행 전 차단 |
+| M1 Pro 32GB MPS | fallback 비활성 상태의 학습·평가·추론, 기본 640–960 정책, 2000px 타일 추론 통과 |
+| macOS arm64 sidecar | MPS·CPU provider와 PyTorch 2.11.0/TorchVision 0.26.0 실행 확인 |
+| macOS arm64 번들 | ad-hoc hardened-runtime app 서명 검증, DMG checksum·마운트·내부 앱 검증 통과 |
 
 통합 테스트의 작은 도형 데이터는 엔진 동작만 검증하며 상용 정확도 근거가 아니다. 1 epoch 결과의 F1이 낮아도 정상적인 기계적 통합 시험이다.
 
 ## 8. 미완료 조건
 
-- M1 Pro 16GB에서 macOS arm64 sidecar 빌드와 MPS 학습·추론
+- M1 Pro 16GB 기준 장비에서 메모리 한계와 처리량 재검증
 - 24시간 이상 메모리·발열·절전·체크포인트 재개 시험
 - 실제 촬영 고정 평가 세트와 상용 품질 기준
 - 모델 `qualified` 승격과 이전 모델 비교 UI
 - Core ML·ONNX 변환 및 실행 경로
 - OCR, 배번호 식별, 세밀 분류, 이상 탐지용 추가 백엔드
 - 생성 캐시 용량 상한과 시작 전 전체 저장량 예측 UI
-- Apple 코드 서명, hardened runtime, notarization, DMG 설치 시험
+- Developer ID 코드 서명, notarization, Gatekeeper 최초 실행 시험
+- macOS 14 빌드 호스트 또는 실제 Sonoma 장비의 하위 호환성 시험
 - 사전학습 체크포인트와 COCO 관련 상용 배포 법률 검토
 
 ## 9. 다음 실행 순서
 
-1. M1 Pro 16GB에서 `uv sync --project engine --all-groups --locked`를 실행한다.
-2. Python 테스트와 Torch 통합 테스트를 MPS로 실행한다.
-3. `npm --workspace @visionforge/desktop run tauri -- build`로 arm64 app·dmg를 만든다.
-4. 실제 촬영 사진으로 고정 평가 세트를 만들고 MPS·CPU 결과를 비교한다.
-5. 24시간 이상 중단·재개 시험과 72시간 기준 작업 벤치마크를 수행한다.
-6. 품질 승격 기능과 코드 서명·notarization을 완료한 뒤 상용 배포를 판정한다.
+1. M1 Pro 16GB에서 동일 arm64 빌드와 기준 데이터 벤치마크를 반복한다.
+2. 실제 촬영 사진으로 고정 평가 세트를 만들고 MPS·CPU 결과를 비교한다.
+3. 24시간 이상 중단·재개 시험과 72시간 기준 작업 벤치마크를 수행한다.
+4. MPS OOM 이후 항목 격리·복구 동작을 자동화해 검증한다.
+5. macOS 14 실기 호환성과 Developer ID 서명·notarization을 완료한다.
+6. 품질 승격 기능까지 완료한 뒤 상용 배포를 판정한다.
 
 상세 구현은 [HIGH_PERFORMANCE_BACKEND_IMPLEMENTATION.md](HIGH_PERFORMANCE_BACKEND_IMPLEMENTATION.md), 요구사항은 [VISIONFORGE_REQUIREMENTS_SPEC.md](VISIONFORGE_REQUIREMENTS_SPEC.md)를 기준으로 한다.

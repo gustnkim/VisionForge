@@ -2,6 +2,7 @@
   "name": "visionforge-workspace",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.16.0",
   "workspaces": [
     "apps/desktop"
   ],
@@ -9,6 +10,8 @@
     "dev": "npm run tauri --workspace @visionforge/desktop -- dev",
     "build": "npm run build --workspace @visionforge/desktop",
     "build:desktop": "npm run tauri --workspace @visionforge/desktop -- build",
+    "build:macos": "npm run tauri --workspace @visionforge/desktop -- build --target aarch64-apple-darwin --ci --config '{\"bundle\":{\"macOS\":{\"signingIdentity\":\"-\"}}}'",
+    "build:macos:signed": "npm run tauri --workspace @visionforge/desktop -- build --target aarch64-apple-darwin --ci",
     "test": "npm run test --workspace @visionforge/desktop",
     "check": "npm run check --workspace @visionforge/desktop"
   },
@@ -17,4 +20,3 @@
     "npm": ">=11 <13"
   }
 }
-

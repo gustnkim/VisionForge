@@ -77,14 +77,16 @@ struct HardwareProfileEnvelope {
 }
 
 pub fn engine_ready() -> bool {
-    bundled_engine_path().is_some() || python_path().exists()
+    bundled_engine_path().is_some() || (cfg!(debug_assertions) && python_path().exists())
 }
 
 pub fn engine_display_path() -> String {
     if let Some(path) = bundled_engine_path() {
         path.to_string_lossy().into_owned()
-    } else {
+    } else if cfg!(debug_assertions) {
         python_path().to_string_lossy().into_owned()
+    } else {
+        "번들 이미지 엔진을 찾을 수 없습니다.".to_owned()
     }
 }
 
@@ -244,6 +246,13 @@ fn run_engine_command(
         return result;
     }
 
+    if !cfg!(debug_assertions) {
+        return Err(
+            "배포 앱에 포함된 로컬 이미지 엔진을 찾을 수 없습니다. 앱을 다시 설치해 주세요."
+                .to_owned(),
+        );
+    }
+
     let python = python_path();
     if !python.exists() {
         return Err(format!(
@@ -280,11 +289,20 @@ pub fn train_model(
     output_directory: &Path,
     seed: i64,
 ) -> Result<TrainingResultInput, String> {
+    train_model_with_backend(dataset_manifest_path, output_directory, seed, "auto")
+}
+
+fn train_model_with_backend(
+    dataset_manifest_path: &Path,
+    output_directory: &Path,
+    seed: i64,
+    backend: &str,
+) -> Result<TrainingResultInput, String> {
     let request = serde_json::json!({
         "dataset_manifest_path": dataset_manifest_path,
         "output_directory": output_directory,
         "seed": seed,
-        "backend": "auto",
+        "backend": backend,
     });
     let output = run_engine_command("train", &request, "학습")?;
     let response: TrainingEnvelope = serde_json::from_slice(&output)
@@ -520,12 +538,15 @@ mod tests {
             visionforge_core::create_dataset_version(&project.path, 2026).expect("dataset");
         let training_job =
             visionforge_core::start_job(&project.path, "model_training", 1).expect("training job");
-        let training = train_model(
+        // This test verifies the Rust/Python/project contract. The dedicated
+        // Python integration test exercises the resource-intensive Torch backend.
+        let training = train_model_with_backend(
             Path::new(&dataset.manifest_path),
             &Path::new(&project.path)
                 .join("models")
                 .join(&training_job.id),
             2026,
+            "linear",
         )
         .expect("train model");
         let model = visionforge_core::record_training_result(
