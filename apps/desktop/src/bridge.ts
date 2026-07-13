@@ -40,7 +40,7 @@ export async function chooseProjectDirectory() {
   const selected = await open({
     directory: true,
     multiple: false,
-    title: "VisionForge 프로젝트를 저장할 폴더",
+    title: "새 VisionForge 프로젝트의 상위 저장 폴더 선택",
   });
   return typeof selected === "string" ? selected : null;
 }
@@ -50,7 +50,7 @@ export async function chooseExistingProjectDirectory() {
   const selected = await open({
     directory: true,
     multiple: false,
-    title: "VisionForge 프로젝트 폴더 선택",
+    title: "project.json이 있는 VisionForge 프로젝트 폴더 선택",
   });
   return typeof selected === "string" ? selected : null;
 }

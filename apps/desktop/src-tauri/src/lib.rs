@@ -66,8 +66,6 @@ async fn create_project(
 #[tauri::command]
 async fn open_project_workspace(project_path: String) -> Result<ProjectWorkspace, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let recovered_jobs = visionforge_core::recover_interrupted_jobs(&project_path)
-            .map_err(|error| error.to_string())?;
         let project =
             visionforge_core::open_project(&project_path).map_err(|error| error.to_string())?;
         let targets = visionforge_core::list_imported_images(&project_path, "target_original")
@@ -81,6 +79,8 @@ async fn open_project_workspace(project_path: String) -> Result<ProjectWorkspace
         let model = visionforge_core::latest_model_version(&project_path)
             .map_err(|error| error.to_string())?;
         let task_spec = visionforge_core::current_task_spec(&project_path)
+            .map_err(|error| error.to_string())?;
+        let recovered_jobs = visionforge_core::recover_interrupted_jobs(&project_path)
             .map_err(|error| error.to_string())?;
         Ok(ProjectWorkspace {
             project,

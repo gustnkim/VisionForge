@@ -19,10 +19,10 @@
 
 ## 결과
 
-- Rust workspace: core 9 passed, desktop 3 passed
+- Rust workspace: core 11 passed, desktop 3 passed
 - Python 기본 테스트: 14 passed, Torch opt-in 1 skipped
 - Ruff: passed
-- TypeScript·Vitest: passed, 2 tests
+- TypeScript·Vitest: passed, 4 tests
 - Vite production build: passed
 - 사전학습 Faster R-CNN MPS 1 epoch 학습·평가·추론: passed
 - `PYTORCH_ENABLE_MPS_FALLBACK=0`: passed
@@ -43,7 +43,7 @@
 | `VisionForge_0.1.0_aarch64.dmg` | 약 272MB, `hdiutil verify` 통과 |
 | DMG 내용 | `VisionForge.app`, `/Applications` 링크, 마운트 후 앱 서명 검증 통과 |
 
-검증 시 DMG SHA-256은 `b4c459ff9813463da0943eaedf4392d3a5fc07635759c792260b15ec9f5c8bd8`였다. 다시 빌드하면 서명·메타데이터 때문에 값이 바뀔 수 있다.
+검증 시 DMG SHA-256은 `7a63eee505bb3b19265a1debb398aaa8d9b2839e89db410de945d0d09cb537f6`였다. 다시 빌드하면 서명·메타데이터 때문에 값이 바뀔 수 있다.
 
 ## 이번에 수정한 macOS 결함
 

@@ -47,6 +47,8 @@ const workflow = [
   ["06", "일괄 추론"],
 ] as const;
 
+type AppView = "setup" | "workspace";
+
 function decisionLabel(decision: string) {
   return {
     present: "포함",
@@ -99,6 +101,7 @@ function BoundingBoxEditor({
 function App() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [project, setProject] = useState<ProjectSummary | null>(null);
+  const [view, setView] = useState<AppView>("setup");
   const [images, setImages] = useState<ImportedImage[]>([]);
   const [backgrounds, setBackgrounds] = useState<ImportedImage[]>([]);
   const [generated, setGenerated] = useState<GeneratedImage[]>([]);
@@ -137,6 +140,8 @@ function App() {
 
   function applyWorkspace(workspace: ProjectWorkspace) {
     setProject(workspace.project);
+    setProjectName(workspace.project.name);
+    setClassName(workspace.project.className);
     setImages(workspace.targets);
     setBackgrounds(workspace.backgrounds);
     setGenerated(workspace.generated);
@@ -144,6 +149,7 @@ function App() {
     setModel(workspace.model);
     setInference(null);
     applyTaskSpec(workspace.taskSpec);
+    setView("workspace");
   }
 
   function currentTaskInput(): TaskSpecInput {
@@ -174,6 +180,29 @@ function App() {
       taskSpec.outputPolicy.positiveThreshold === input.outputPolicy.positiveThreshold &&
       taskSpec.outputPolicy.negativeThreshold === input.outputPolicy.negativeThreshold
     );
+  }
+
+  function confirmProjectReplacement() {
+    if (!project || !taskSpec || taskFormMatchesSavedSpec()) return true;
+    return window.confirm(
+      "현재 프로젝트에 저장하지 않은 작업 설정이 있습니다. 저장하지 않고 다른 프로젝트로 전환할까요?",
+    );
+  }
+
+  function handleShowProjectSetup() {
+    if (!project || busy) return;
+    setProjectName(project.name);
+    setClassName(project.className);
+    setView("setup");
+    setNotice(
+      "현재 프로젝트는 그대로 유지됩니다. 새 프로젝트를 만들거나 저장된 VisionForge 프로젝트를 선택할 수 있습니다.",
+    );
+  }
+
+  function handleResumeProject() {
+    if (!project || busy) return;
+    setView("workspace");
+    setNotice(`현재 프로젝트로 돌아왔습니다: ${project.name}`);
   }
 
   async function persistTaskConfiguration(showNotice: boolean) {
@@ -208,6 +237,7 @@ function App() {
       setNotice("데스크톱 앱에서 프로젝트 저장 폴더를 선택해 주세요.");
       return;
     }
+    if (!confirmProjectReplacement()) return;
     setBusy(true);
     setNotice(null);
     try {
@@ -226,6 +256,7 @@ function App() {
     if (!packagePath) return;
     const baseDirectory = await chooseProjectDirectory();
     if (!baseDirectory) return;
+    if (!confirmProjectReplacement()) return;
     setBusy(true);
     setNotice("패키지 경로·압축 크기·파일별 체크섬과 모델 호환성을 검사하고 있습니다.");
     try {
@@ -247,6 +278,12 @@ function App() {
   async function handleOpenProject() {
     const projectPath = await chooseExistingProjectDirectory();
     if (!projectPath) return;
+    if (project?.path === projectPath) {
+      setView("workspace");
+      setNotice(`현재 프로젝트로 돌아왔습니다: ${project.name}`);
+      return;
+    }
+    if (!confirmProjectReplacement()) return;
     setBusy(true);
     setNotice("저장된 자산, 승인 상태, 데이터셋과 최신 모델을 복원하고 있습니다.");
     try {
@@ -584,60 +621,91 @@ function App() {
 
         {notice && <div className="notice" role="status">{notice}</div>}
 
-        {!project ? (
-          <section className="setup-grid">
-            <article className="panel create-panel">
-              <div className="panel-heading">
-                <span>01</span>
+        {view === "setup" || !project ? (
+          <>
+            {project && (
+              <section className="active-project-return">
                 <div>
-                  <p className="eyebrow">NEW PROJECT</p>
-                  <h2>첫 탐지 대상을 정의합니다.</h2>
+                  <span>현재 열려 있는 프로젝트</span>
+                  <strong>{project.name}</strong>
+                  <small>{project.path}</small>
                 </div>
-              </div>
-              <label>
-                프로젝트 이름
-                <input value={projectName} onChange={(event) => setProjectName(event.target.value)} />
-              </label>
-              <label>
-                대상 클래스 이름
-                <input
-                  value={className}
-                  onChange={(event) => setClassName(event.target.value)}
-                  placeholder="예: 빨간 부품 상자"
-                />
-              </label>
-              <button className="primary-button" onClick={handleCreateProject} disabled={busy}>
-                저장 위치를 선택하고 시작
-                <span aria-hidden="true">↗</span>
-              </button>
-              <button className="open-project-button" onClick={handleOpenProject} disabled={busy}>
-                기존 프로젝트 폴더 열기
-                <span aria-hidden="true">↙</span>
-              </button>
-            </article>
+                <button type="button" onClick={handleResumeProject} disabled={busy}>
+                  현재 프로젝트로 돌아가기
+                  <span aria-hidden="true">→</span>
+                </button>
+              </section>
+            )}
+            <section className="setup-grid">
+              <article className="panel create-panel">
+                <div className="panel-heading">
+                  <span>01</span>
+                  <div>
+                    <p className="eyebrow">NEW PROJECT</p>
+                    <h2>첫 탐지 대상을 정의합니다.</h2>
+                  </div>
+                </div>
+                <p className="setup-help">
+                  빈 폴더를 미리 만들 필요가 없습니다. 상위 저장 폴더를 선택하면 그 안에
+                  전용 프로젝트 폴더를 자동으로 만듭니다.
+                </p>
+                <label>
+                  프로젝트 이름
+                  <input value={projectName} onChange={(event) => setProjectName(event.target.value)} />
+                </label>
+                <label>
+                  대상 클래스 이름
+                  <input
+                    value={className}
+                    onChange={(event) => setClassName(event.target.value)}
+                    placeholder="예: 빨간 부품 상자"
+                  />
+                </label>
+                <button className="primary-button" onClick={handleCreateProject} disabled={busy}>
+                  상위 저장 폴더를 선택하고 새 프로젝트 만들기
+                  <span aria-hidden="true">↗</span>
+                </button>
+                <button className="open-project-button" onClick={handleOpenProject} disabled={busy}>
+                  저장된 VisionForge 프로젝트 열기
+                  <span aria-hidden="true">↙</span>
+                </button>
+                <small className="existing-project-help">
+                  project.json과 project.sqlite가 들어 있는 프로젝트 폴더만 열 수 있습니다.
+                </small>
+              </article>
 
-            <article className="panel principle-panel">
-              <p className="eyebrow">HOW IT STORES</p>
-              <h2>원본은 보존하고,<br />임시 변형은 쌓지 않습니다.</h2>
-              <div className="storage-lines">
-                <div><span>영구</span><strong>원본 · 승인 합성본 · 모델</strong></div>
-                <div><span>제한</span><strong>썸네일 · 재생성 가능 캐시</strong></div>
-                <div><span>순간</span><strong>현재 학습 배치의 RAM 데이터</strong></div>
-              </div>
-              <button className="package-import" onClick={handleImportModelPackage} disabled={busy}>
-                <span>.VFMODEL</span>
-                <strong>공유 모델 가져와 바로 판정</strong>
-                <i aria-hidden="true">↘</i>
-              </button>
-            </article>
-          </section>
+              <article className="panel principle-panel">
+                <p className="eyebrow">HOW IT STORES</p>
+                <h2>원본은 보존하고,<br />임시 변형은 쌓지 않습니다.</h2>
+                <div className="storage-lines">
+                  <div><span>영구</span><strong>원본 · 승인 합성본 · 모델</strong></div>
+                  <div><span>제한</span><strong>썸네일 · 재생성 가능 캐시</strong></div>
+                  <div><span>순간</span><strong>현재 학습 배치의 RAM 데이터</strong></div>
+                </div>
+                <button className="package-import" onClick={handleImportModelPackage} disabled={busy}>
+                  <span>.VFMODEL</span>
+                  <strong>공유 모델 가져와 바로 판정</strong>
+                  <i aria-hidden="true">↘</i>
+                </button>
+              </article>
+            </section>
+          </>
         ) : (
           <>
             <section className="project-strip">
-              <div>
+              <div className="project-identity">
                 <p className="eyebrow">ACTIVE PROJECT</p>
                 <h2>{project.name}</h2>
                 <span className="project-path">{project.path}</span>
+                <button
+                  type="button"
+                  className="change-project-button"
+                  onClick={handleShowProjectSetup}
+                  disabled={busy}
+                >
+                  <span aria-hidden="true">←</span>
+                  프로젝트 선택 화면
+                </button>
               </div>
               <div className="project-stat"><span>대상</span><strong>{project.className}</strong></div>
               <div className="project-stat"><span>등록</span><strong>{project.imageCount}</strong></div>

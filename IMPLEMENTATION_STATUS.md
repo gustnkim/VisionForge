@@ -77,10 +77,10 @@ Rust 코어가 프로젝트 경계, TaskSpec, 데이터셋 계보, 모델 상태
 | Python 단위 테스트 | 14 passed, 1 opt-in skipped |
 | Torch 사전학습 통합 테스트 | MPS 1 passed, CPU 1 passed, 이전 CUDA 1 passed |
 | Python Ruff | 통과, cache 비활성화 |
-| Rust core 테스트 | 9 passed |
+| Rust core 테스트 | 11 passed |
 | Rust desktop 테스트 | 3 passed, 전체 로컬 파이프라인 포함 |
 | React TypeScript | 통과 |
-| Vitest | 2 passed |
+| Vitest | 4 passed |
 | Vite production build | 통과 |
 | CUDA `onedir` sidecar | system-profile, 실제 모델 추론, 1 epoch 학습 통과 |
 | 잠금 기반 CPU `onedir` sidecar | 617MB 빌드 성공, 새 unsigned 실행 파일은 현재 Windows 앱 제어 정책에 차단 |

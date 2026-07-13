@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -163,14 +163,35 @@ fn project_database_path(project_path: &Path) -> PathBuf {
 }
 
 pub(crate) fn open_database(project_path: &Path) -> Result<Connection, CoreError> {
+    let database_path = project_database_path(project_path);
+    if !database_path.is_file() {
+        return Err(CoreError::InvalidProject(
+            "프로젝트 데이터베이스(project.sqlite)가 없습니다. 올바른 VisionForge 프로젝트 폴더를 선택해 주세요."
+                .to_owned(),
+        ));
+    }
+    let connection = Connection::open_with_flags(
+        database_path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
+    configure_database(&connection)?;
+    Ok(connection)
+}
+
+fn create_database(project_path: &Path) -> Result<Connection, CoreError> {
     let connection = Connection::open(project_database_path(project_path))?;
+    configure_database(&connection)?;
+    Ok(connection)
+}
+
+fn configure_database(connection: &Connection) -> Result<(), CoreError> {
     connection.execute_batch(
         "PRAGMA foreign_keys = ON;
          PRAGMA journal_mode = WAL;
          PRAGMA synchronous = NORMAL;
          PRAGMA busy_timeout = 5000;",
     )?;
-    Ok(connection)
+    Ok(())
 }
 
 pub(crate) fn initialize_schema(connection: &Connection) -> Result<(), CoreError> {
@@ -477,7 +498,17 @@ fn write_manifest(project_path: &Path, manifest: &ProjectManifest) -> Result<(),
 }
 
 pub(crate) fn read_manifest(project_path: &Path) -> Result<ProjectManifest, CoreError> {
-    let content = fs::read(project_path.join("project.json"))?;
+    let manifest_path = project_path.join("project.json");
+    let content = match fs::read(&manifest_path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(CoreError::InvalidProject(
+                "선택한 폴더는 VisionForge 프로젝트가 아닙니다. project.json과 project.sqlite가 있는 기존 프로젝트 폴더를 선택하거나 첫 화면에서 새 프로젝트를 만들어 주세요."
+                    .to_owned(),
+            ));
+        }
+        Err(error) => return Err(error.into()),
+    };
     let manifest: ProjectManifest = serde_json::from_slice(&content)?;
     if manifest.schema_version > SCHEMA_VERSION {
         return Err(CoreError::InvalidProject(format!(
@@ -562,7 +593,7 @@ pub fn create_project(
     };
     write_manifest(&project_path, &manifest)?;
 
-    let connection = open_database(&project_path)?;
+    let connection = create_database(&project_path)?;
     initialize_schema(&connection)?;
     connection.execute(
         "INSERT INTO project(id, name, class_id, class_name, created_at)
@@ -1289,6 +1320,7 @@ mod tests {
 
         let reopened = open_project(&project.path).expect("open");
         assert_eq!(reopened.id, project.id);
+        assert_eq!(reopened.image_count, 0);
 
         let job = start_job(&project.path, "long_running", 3).expect("start job");
         assert_eq!(recover_interrupted_jobs(&project.path).expect("recover"), 1);
@@ -1297,6 +1329,42 @@ mod tests {
             read_job(&connection, &job.id).expect("job").status,
             "interrupted"
         );
+    }
+
+    #[test]
+    fn empty_directory_is_rejected_as_a_non_project() {
+        let root = tempfile::tempdir().expect("temporary directory");
+
+        let open_error = open_project(root.path()).expect_err("empty directory must be rejected");
+        assert!(matches!(
+            open_error,
+            CoreError::InvalidProject(message)
+                if message.contains("VisionForge 프로젝트가 아닙니다")
+                    && message.contains("새 프로젝트")
+        ));
+
+        let recover_error = recover_interrupted_jobs(root.path())
+            .expect_err("recovery must reject an empty directory");
+        assert!(matches!(recover_error, CoreError::InvalidProject(_)));
+        assert!(!root.path().join("project.sqlite").exists());
+    }
+
+    #[test]
+    fn missing_database_is_rejected_without_recreating_it() {
+        let root = tempfile::tempdir().expect("temporary directory");
+        let project = create_project(root.path(), "손상 확인", "부품").expect("create");
+        let database_path = Path::new(&project.path).join("project.sqlite");
+        fs::remove_file(&database_path).expect("remove database");
+
+        let error = open_project(&project.path).expect_err("missing database must be rejected");
+        assert!(matches!(
+            error,
+            CoreError::InvalidProject(message) if message.contains("project.sqlite")
+        ));
+        let recover_error = recover_interrupted_jobs(&project.path)
+            .expect_err("recovery must not recreate a missing database");
+        assert!(matches!(recover_error, CoreError::InvalidProject(_)));
+        assert!(!database_path.exists());
     }
 
     #[test]
